@@ -10,7 +10,11 @@ INCLUDEPATH += .
 # Input
 HEADERS += arp.h \
     chain.h \
-    netdev.h
+    netdev.h \
+    frame.h \
+    receiver.h
 SOURCES += arp.c ping.c \
     chain.c \
-    netdev.c
+    netdev.c \
+    frame.c \
+    receiver.c

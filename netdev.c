@@ -112,17 +112,19 @@ void init_local(char *ifname, struct ifaddrs *ifs, struct ifaddrs *local) {
         print_ip(ifa->ifa_addr);
         if ( in_subnet(sockaddr_ip_addr(ifa->ifa_addr), ifs) ) {
           memcpy(local, ifa, sizeof(struct ifaddr));
-          local->ifa_addr = malloc(sizeof(struct sockaddr));
+          local->ifa_addr = malloc(sizeof(struct sockaddr_ll));
           memcpy(local->ifa_addr, ifa->ifa_addr, sizeof(struct sockaddr));
           int ifa_name_len = strlen(ifa->ifa_name)+1;
           local->ifa_name = malloc(ifa_name_len);
           memcpy(local->ifa_name, ifa->ifa_name, ifa_name_len);
+          local->ifa_dstaddr = malloc(sizeof(struct sockaddr_ll));
+          memcpy(local->ifa_dstaddr, local->ifa_addr, sizeof(struct sockaddr));
           struct ifaddrs *mac_ifaddr = find_mac_addr(ifaddr, ifa);
           if ( mac_ifaddr )
             memcpy(ifaddr_mac(local), ifaddr_mac(mac_ifaddr), 6);
-          ((struct sockaddr_ll*)local->ifa_addr)->sll_ifindex = if_nametoindex(local->ifa_name);
-          ((struct sockaddr_ll*)local->ifa_addr)->sll_family = AF_PACKET;
-          ((struct sockaddr_ll*)local->ifa_addr)->sll_protocol = htons(ETH_P_ARP);
+          ((struct sockaddr_ll*)local->ifa_dstaddr)->sll_ifindex = if_nametoindex(local->ifa_name);
+          ((struct sockaddr_ll*)local->ifa_dstaddr)->sll_family = AF_PACKET;
+          ((struct sockaddr_ll*)local->ifa_dstaddr)->sll_protocol = htons(ETH_P_ARP);
           break;
         }
       }
@@ -133,4 +135,5 @@ void init_local(char *ifname, struct ifaddrs *ifs, struct ifaddrs *local) {
 
 void free_local(struct ifaddrs* ifa) {
   free(ifa->ifa_addr);
+  free(ifa->ifa_dstaddr);
 }

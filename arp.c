@@ -29,5 +29,10 @@ unsigned short csum(unsigned short *ptr, int nbytes) {
   sum = sum + (sum>>16);
   answer=(unsigned short)~sum;
 
-  return(answer);
+  return answer;
+}
+
+
+int is_arp_reply(arp_hdr *arp) {
+  return ( ntohs (arp->opcode) == ARPOP_REPLY);
 }
