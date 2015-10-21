@@ -11,6 +11,7 @@
 #include <pthread.h>
 #include <time.h>
 #include <getopt.h>
+#include <unistd.h>
 
 #include <net/if.h>
 #include <ifaddrs.h>
@@ -19,31 +20,6 @@
 #include "chain.h"
 #include "netdev.h"
 
-struct endpoint get_remote(char *target) {
-    // Fill out hints for getaddrinfo().
-  int status;
-  struct endpoint epnt;
-  struct addrinfo hints, *res;
-  struct sockaddr_in *ipv4;
-  
-  bzero (&hints, sizeof (struct addrinfo));
-  hints.ai_family = AF_INET;
-  hints.ai_socktype = SOCK_STREAM;
-  hints.ai_flags = hints.ai_flags | AI_CANONNAME;
-
-  // Resolve target using getaddrinfo().
-  if ((status = getaddrinfo (target, NULL, &hints, &res)) != 0) {
-    fprintf (stderr, "getaddrinfo() failed: %s\n", gai_strerror (status));
-    exit (EXIT_FAILURE);
-  }
-  ipv4 = (struct sockaddr_in *) res->ai_addr;
-  memcpy (epnt.ip, &ipv4->sin_addr, sizeof (epnt.ip));
-  freeaddrinfo (res);
-  
-  memset (epnt.mac, 0xff, sizeof (epnt.mac));
-  return epnt;
-}
- 
 void init_ethernet_frame(char *frame,
                          struct ifaddrs *local,
                          struct ifaddrs *remote) {
@@ -60,17 +36,15 @@ struct find_ip {
   int count;
 } ips;
 
-struct arg {
-  struct endpoint *ep;
-  chain_t *first;
-  chain_t *last;
-};
+static void *start_test(void *ptr) {
+  printf("thread finish! %08x \n", ptr);
+  return NULL;
+}
  
 void *receive_arp( void *ptr ) {
   int sd, status, i;
   uint8_t ether_frame[IP_MAXPACKET];
-  struct arg *a = ptr;
-  struct endpoint *local_endpoint = a->ep;
+  struct ifaddrs *local_endpoint = (ptr);
   if ((sd = socket (AF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
     perror ("socket() failed ");
     exit (EXIT_FAILURE);
@@ -80,7 +54,8 @@ void *receive_arp( void *ptr ) {
   ether_frame[13] = 0x00;
   arp_hdr * arphdr_rec;
   arphdr_rec = (arp_hdr *) (ether_frame + ETH_HDRLEN);
-  while (((((ether_frame[12]) << 8) + ether_frame[13]) != ETH_P_ARP) || (ntohs (arphdr_rec->opcode) != ARPOP_REPLY)) {
+  while (((((ether_frame[12]) << 8) + ether_frame[13]) != ETH_P_ARP) ||
+         (ntohs (arphdr_rec->opcode) != ARPOP_REPLY)) {
     if ((status = recv (sd, ether_frame, IP_MAXPACKET, 0)) < 0) {
       if (errno == EINTR) {
         memset (ether_frame, 0, IP_MAXPACKET * sizeof (uint8_t));
@@ -91,7 +66,9 @@ void *receive_arp( void *ptr ) {
       }
     }
   }
-  if ( strncmp (local_endpoint->mac, ether_frame, 6) != 0 ) continue;
+  printf("receive smth \n");
+  print_mac(local_endpoint->ifa_addr);
+  if ( strncmp (ifaddr_mac(local_endpoint), ether_frame, 6) != 0 ) continue;
 
   chain_del_number(arphdr_rec->sender_ip[3]);
   
@@ -120,16 +97,16 @@ void *receive_arp( void *ptr ) {
 }
  
 int main (int argc, char *argv[]) {
-  int i, j, status, frame_length, sd, bytes;
+  int i, frame_length, sd, bytes;
   arp_hdr arphdr;
   uint8_t ether_frame[IP_MAXPACKET];
   net_dev_t dev;
-  struct endpoint localEndpoint, remoteEndpoint;
   int c;
-  int verbose = 0;
   char *ifacename = NULL;
   char *target;
   struct ifaddrs sender, local;
+  pthread_t thread1;
+  int  iret1;
 
   if (argc < 2) {
     printf("too few arguments %d\n", argc);
@@ -146,10 +123,9 @@ int main (int argc, char *argv[]) {
   while ((c = getopt(argc, argv, "vr:i:")) != EOF) {
     switch (c) {
     case 'v':
-      verbose = 1;
       break;
     case 'r':
-      atoi(optarg);
+      //atoi(optarg);
       break;
     case 'i':
         ifacename = optarg;
@@ -166,14 +142,13 @@ int main (int argc, char *argv[]) {
 
   printf("%s ", local.ifa_name);
   print_ip(local.ifa_addr);
+  print_mac(local.ifa_addr);
   
   ips.count = 0;
   
   strcpy (dev.interface, "wlan0");
   
   init_device(&dev);
-  localEndpoint = get_endpoint(dev.interface);
-  remoteEndpoint = get_remote(target);
  
   /*for (i=0; i<5; i++) {
     printf ("%02x:", localEndpoint.mac[i]);
@@ -188,31 +163,19 @@ int main (int argc, char *argv[]) {
   arphdr.plen = 4;
   arphdr.opcode = htons (ARPOP_REQUEST);
   
-  // Source IP address
-  if ((status = inet_pton (AF_INET, localEndpoint.ip, &arphdr.sender_ip)) != 1) {
-    fprintf (stderr, "inet_pton() failed for source IP address.\nError message: %s", strerror (status));
-    exit (EXIT_FAILURE);
-  }
-  memcpy (&arphdr.sender_mac, localEndpoint.mac, sizeof (localEndpoint.mac));
+  memcpy (&arphdr.sender_ip, &ifaddr_ip_addr(&local), sizeof(arphdr.sender_ip));
+  memcpy (&arphdr.sender_mac, ifaddr_mac(&local), sizeof (arphdr.sender_mac));
   bzero (&arphdr.target_mac, sizeof (arphdr.target_mac));
-  memcpy (&arphdr.target_ip, remoteEndpoint.ip, sizeof (remoteEndpoint.ip));
+  memcpy (&arphdr.target_ip, &ifaddr_ip_addr(&sender), sizeof (arphdr.target_ip));
 
   frame_length = ETH_HDRLEN + ARP_HDRLEN;
 
-  init_ethernet_frame(ether_frame, &local, &sender);
+  init_ethernet_frame((unsigned char*)ether_frame, &local, &sender);
   memcpy (ether_frame + ETH_HDRLEN, &arphdr, ARP_HDRLEN * sizeof (uint8_t));
   
-  pthread_t thread1;
-  int  iret1;
-  
   chain_init(254);
-  
-  struct arg a;
-  a.ep = &localEndpoint;
-  a.first = NULL;
-  a.last = NULL;
-  
-  iret1 = pthread_create( &thread1, NULL, receive_arp, (void*)&a);
+
+  iret1 = pthread_create( &thread1, NULL, &receive_arp, &local);
   if(iret1) {
     fprintf(stderr,"Error - pthread_create() return code: %d\n",iret1);
     exit(EXIT_FAILURE);
@@ -248,6 +211,8 @@ int main (int argc, char *argv[]) {
   printf("find %d\n", find->ip);
   
   chain_free();
+  free_local(&local);
+  free_target(&sender);
   exit(1);
   // receive
   pthread_join(thread1, NULL);

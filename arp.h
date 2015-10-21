@@ -36,13 +36,6 @@ struct _arp_hdr {
   uint8_t target_ip[4];
 };
 
-struct endpoint {
-  unsigned char mac[6];
-  unsigned char ip[INET_ADDRSTRLEN];
-};
-
 unsigned short csum(unsigned short *ptr,int nbytes);
-
-struct endpoint get_endpoint(char *iface);
 
 #endif // _ARP_H_
