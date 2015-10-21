@@ -9,11 +9,6 @@
 #include <linux/if_packet.h>
 #include <sys/socket.h>
 
-typedef struct {
-  struct sockaddr_ll device;
-  char interface[40];
-} net_dev_t;
-
 #define sockaddr_mac(addr) ((struct sockaddr_ll*)(addr))->sll_addr
 #define sockaddr_ip_addr(addr) ((struct sockaddr_in*)(addr))->sin_addr
 
@@ -21,12 +16,8 @@ typedef struct {
 #define ifaddr_ip_addr(ifa) sockaddr_ip_addr((ifa)->ifa_addr)
 #define ifaddr_netmask(ifa) sockaddr_ip_addr((ifa)->ifa_netmask)
 
-int init_device(net_dev_t *dev);
-
 void print_ip(struct sockaddr *);
 void print_mac(struct sockaddr *);
-
-void find_all_interfaces();
 
 void init_target(struct ifaddrs *if_sender, char *target);
 void free_target(struct ifaddrs *if_sender);

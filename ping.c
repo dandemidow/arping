@@ -128,7 +128,6 @@ int main (int argc, char *argv[]) {
   int i, frame_length, sd, bytes;
   arp_hdr arphdr;
   uint8_t ether_frame[IP_MAXPACKET];
-  net_dev_t dev;
   int c;
   char *ifacename = NULL;
   char *target;
@@ -171,16 +170,6 @@ int main (int argc, char *argv[]) {
   printf("%s ", local.ifa_name);
   print_ip(local.ifa_addr);
   print_mac(local.ifa_addr);
-  
-  strcpy (dev.interface, "wlan0");
-  
-  init_device(&dev);
- 
-  /*for (i=0; i<5; i++) {
-    printf ("%02x:", localEndpoint.mac[i]);
-  }
-  printf ("%02x\n", localEndpoint.mac[5]);
-  printf("IP address: %s\n", localEndpoint.ip);*/
 
   sigact.sa_handler = sighandler;
   sigemptyset(&sigact.sa_mask);
@@ -224,7 +213,9 @@ int main (int argc, char *argv[]) {
   while(i++ < 10*254 && !global_exit) {
     //printf("ip %d\n", chain_get()->ip);
     ether_frame[41] = chain_get()->ip;
-    if ((bytes = sendto (sd, ether_frame, frame_length, 0, (struct sockaddr *) &dev.device, sizeof (dev.device))) <= 0) {
+    if ((bytes = sendto (sd, ether_frame, frame_length, 0,
+                         local.ifa_addr,
+                         sizeof (struct sockaddr_ll))) <= 0) {
       perror ("sendto() failed");
       exit (EXIT_FAILURE);
     }
