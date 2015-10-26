@@ -95,7 +95,8 @@ unsigned int chain_current(thrash_t *tr) {
 void chain_next(thrash_t *tr) {
   pthread_mutex_lock(&tr->lock);
   if ( tr->current ) {
-    if ( tr->current->next == tr->main ) ++tr->cycle;
+    if ( tr->current->next == tr->main )
+      ++tr->cycle;
     tr->current = tr->current->next;
   } else {
     tr->current = tr->main;
