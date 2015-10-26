@@ -26,6 +26,10 @@ static int _trans_exit = 0;
 
 extern void *receive_arp(void*);
 
+static void usage() {
+  printf("arping start_ip/netmast [-r cycles]\n");
+}
+
 static void sighandler(int signum) {
   fprintf(stderr, "Signal caught, exiting, %d!\n", signum);
   _trans_exit = 1;
@@ -37,6 +41,7 @@ int main (int argc, char *argv[]) {
   int sd;
   char ether_frame[ETH_FRAME_ARP];
   int c;
+  size_t cycles = 1;
   char *ifacename = NULL;
   char *target;
   struct ifaddrs sender, local;
@@ -59,14 +64,14 @@ int main (int argc, char *argv[]) {
     case 'v':
       break;
     case 'r':
-      //atoi(optarg);
+      cycles = atoi(optarg);
       break;
     case 'i':
         ifacename = optarg;
         break;
 
     default: break;
-      //usage();
+      usage();
     }
   }
 
@@ -115,8 +120,7 @@ int main (int argc, char *argv[]) {
     exit (EXIT_FAILURE);
   }
   
-  // send
-  while(addr_container.cycle < 1 &&
+  while(addr_container.cycle < cycles &&
         !_trans_exit) {
     *((unsigned int*)alloc_arphdr(ether_frame)->target_ip) =
         htonl(chain_current(&addr_container));
