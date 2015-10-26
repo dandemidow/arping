@@ -1,112 +1,104 @@
 #include "chain.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 
-static chain_t *main_chain;
-static chain_t *find_chain;
-static pthread_mutex_t lock;
-
-chain_t *chain_init(int count) {
-  int i;
-  chain_t *first, *p;
-  find_chain = NULL;
-  first = malloc(sizeof(chain_t));
-  first->ip = 1;
-  p = first;
-  for(i=0; i<count-1; ++i) {
-    p->next = malloc(sizeof(chain_t));
-    p->next->back = p;
-    p = p->next;
-    p->ip = p->back->ip+1;
-  }
-  p->next = first;
-  first->back = p;
-  main_chain = first;
-  return first;
-}
-
-
-chain_t *chain_add(chain_t *last) {
-  pthread_mutex_lock(&lock);
-  if ( find_chain == NULL ) {
-    find_chain = last;
-    find_chain->next = NULL;
-    find_chain->back = NULL;
-  } else {
-    if ( find_chain->next == NULL && find_chain->back == NULL ) {
-      find_chain->next = last;
-      find_chain->back = last;
-      last->next = find_chain;
-      last->back = find_chain;
-    } else {
-      chain_t *p = find_chain->next;
-      find_chain->next = last;
-      last->back = find_chain;
-      p->back = last;
-      last->next = p;
+void chain_init(thrash_t *tr, unsigned int first_addr, unsigned int last_addr) {
+  unsigned int i;
+  chain_t *previous = NULL;
+  pthread_mutex_init(&tr->lock, NULL);
+  pthread_mutex_lock(&tr->lock);
+  tr->deleted = NULL;
+  tr->main = NULL;
+  tr->cycle = 0;
+  for(i=first_addr; i<=last_addr; ++i) {
+    chain_t *p = malloc(sizeof(chain_t));
+    p->addr = i;
+    if (previous) {
+      p->back = previous;
+      previous->next = p;
     }
+    else tr->main = p;
+    previous = p;
   }
-  pthread_mutex_unlock(&lock);
-  return find_chain;
+  tr->main->back = previous;
+  previous->next = tr->main;
+  tr->current = tr->main;
+  pthread_mutex_unlock(&tr->lock);
 }
 
+static void chain_add_to_thrash(thrash_t *tr, chain_t *ch) {
+  if ( tr->deleted ) {
+    tr->deleted->back->next = ch;
+    ch->back = tr->deleted->back;
+    ch->next = tr->deleted;
+    tr->deleted->back = ch;
+  } else {
+    tr->deleted = ch;
+    tr->deleted->next =
+    tr->deleted->back = ch;
+  }
+}
 
-chain_t *chain_del_current(chain_t *curr) {
-  pthread_mutex_lock(&lock);
-  chain_t *p = curr->next;
-  curr->back->next = curr->next;
-  curr->next->back = curr->back;
-  if ( main_chain == curr ) main_chain = p;
-  pthread_mutex_unlock(&lock);
+static chain_t *exclude_from_main(thrash_t *tr, chain_t *ch) {
+  ch->back->next = ch->next;
+  ch->next->back = ch->back;
+  if ( ch == tr->main ) {
+    if ( ch == tr->current ) tr->current = NULL;
+    tr->main = ch->next;
+  }
+  if ( ch == tr->current ) tr->current = ch->back;
+  ch->next = ch->back = NULL;
+  return ch;
+}
+
+static chain_t *find_value(thrash_t *tr, unsigned int value) {
+  chain_t *s_first;
+  chain_t *s_last = tr->main->back;
+  for(s_first=tr->main; s_first <= s_last; s_first=s_first->next) {
+    if ( s_first->addr == value ) return s_first;
+  }
+  return NULL;
+}
+
+chain_t *chain_del_value(thrash_t *tr, unsigned int value) {
+  pthread_mutex_lock(&tr->lock);
+  chain_t *p = find_value(tr, value);
+  exclude_from_main(tr, p);
+  chain_add_to_thrash(tr, p);
+  pthread_mutex_unlock(&tr->lock);
   return p;
 }
 
-
-void chain_swap(chain_t *curr) {
-  chain_del_current(curr);
-  chain_add(curr);
-}
-
-
-void chain_del_number(int value) {
-  chain_t *last = main_chain;
-  chain_t *first = main_chain;
-  int i = 0;
-  do {
-    i++;
-    if ( first->ip == value ) {
-      chain_swap(first);
-      return;
-    }
-    first = first->next;
-  } while ( first != last );
-}
-
-
-void chain_free() {
-  main_chain->back->next = NULL;
-  chain_t *p = main_chain;
-  while ( p->next == NULL ) {
-    chain_t *ptr = p;
-    p = p->next;
+static void free_chain(chain_t *ch) {
+  ch->back->next = NULL;
+  while ( ch->next != NULL ) {
+    chain_t *ptr = ch;
+    ch = ch->next;
     free(ptr);
   }
-  free(p);
+  free(ch);
 }
 
-
-chain_t *chain_get() {
-  return main_chain;
+void chain_free(thrash_t *tr) {
+  pthread_mutex_lock(&tr->lock);
+  free_chain(tr->main);
+  free_chain(tr->deleted);
+  tr->current = NULL;
+  pthread_mutex_unlock(&tr->lock);
 }
 
-
-void chain_next() {
-  pthread_mutex_lock(&lock);
-  main_chain = main_chain->next;
-  pthread_mutex_unlock(&lock);
+unsigned int chain_current(thrash_t *tr) {
+  return tr->current ? tr->current->addr : tr->main->addr;
 }
 
-
-chain_t *get_find_chain() {
-  return find_chain;
+void chain_next(thrash_t *tr) {
+  pthread_mutex_lock(&tr->lock);
+  if ( tr->current ) {
+    if ( tr->current->next == tr->main ) ++tr->cycle;
+    tr->current = tr->current->next;
+  } else {
+    tr->current = tr->main;
+  }
+  pthread_mutex_unlock(&tr->lock);
 }

@@ -7,19 +7,23 @@
 #include <pthread.h>
 
 typedef struct chain {
-  int ip;
+  unsigned int addr;
   struct chain *next;
   struct chain *back;
 } chain_t;
 
-chain_t* chain_init(int count);
-chain_t *chain_add(chain_t *last);
-chain_t *chain_del_current(chain_t *curr);
-void chain_swap(chain_t *curr);
-void chain_del_number(int value);
-void chain_free();
-chain_t *chain_get();
-void chain_next();
-chain_t *get_find_chain();
+typedef struct {
+  chain_t *main;
+  chain_t *deleted;
+  chain_t *current;
+  pthread_mutex_t lock;
+  size_t cycle;
+} thrash_t;
+
+void chain_init(thrash_t *tr, unsigned int first_addr, unsigned int last_addr);
+chain_t *chain_del_value(thrash_t *tr, unsigned int value);
+void chain_free(thrash_t *tr);
+unsigned int chain_current(thrash_t *tr);
+void chain_next(thrash_t *tr);
 
 #endif  // CHAIN_H

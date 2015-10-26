@@ -16,4 +16,6 @@ void delete_frame_type(char *frame);
 arp_hdr *alloc_arphdr(char *frame);
 int is_frame_arp(char *frame);
 
+int is_source_mac(char *frame, char *mac);
+
 #endif  // _FARAME_H_

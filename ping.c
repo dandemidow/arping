@@ -22,7 +22,7 @@
 #include "frame.h"
 #include "receiver.h"
 
-int _trans_exit = 0;
+static int _trans_exit = 0;
 
 extern void *receive_arp(void*);
 
@@ -34,8 +34,7 @@ static void sighandler(int signum) {
  
 int main (int argc, char *argv[]) {
   struct sigaction sigact;
-  int i, sd, bytes;
-  arp_hdr arphdr;
+  int sd;
   char ether_frame[ETH_FRAME_ARP];
   int c;
   char *ifacename = NULL;
@@ -86,24 +85,27 @@ int main (int argc, char *argv[]) {
   sigaction(SIGTERM, &sigact, NULL);
   sigaction(SIGQUIT, &sigact, NULL);
 
-  // ARP header
-  arphdr.htype = htons (1);
-  arphdr.ptype = htons (ETH_P_IP);
-  arphdr.hlen = 6;
-  arphdr.plen = 4;
-  arphdr.opcode = htons (ARPOP_REQUEST);
-  
-  memcpy (&arphdr.sender_ip, &ifaddr_ip_addr(&local), sizeof(arphdr.sender_ip));
-  memcpy (&arphdr.sender_mac, ifaddr_mac(&local), sizeof (arphdr.sender_mac));
-  bzero (&arphdr.target_mac, sizeof (arphdr.target_mac));
-  memcpy (&arphdr.target_ip, &ifaddr_ip_addr(&sender), sizeof (arphdr.target_ip));
-
   init_frame((char*)ether_frame, &local, &sender);
-  memcpy (ether_frame + ETH_HDRLEN, &arphdr, ARP_HDRLEN * sizeof (uint8_t));
-  
-  chain_init(254);
 
-  if(pthread_create( &receiver, NULL, &receive_arp, &local)) {
+  struct in_addr ia_last;
+  ia_last.s_addr = htonl((ntohl(ifaddr_ip_addr(&sender).s_addr) |
+                    (~ntohl(ifaddr_netmask(&sender).s_addr)))-1);
+
+//  printf("first %s\n", inet_ntoa(ia_last));
+  thrash_t addr_container;
+  
+  chain_init(&addr_container, ntohl(ifaddr_ip_addr(&sender).s_addr), ntohl(ia_last.s_addr));
+
+//  while(addr_container.cycle == 0) {
+//    struct in_addr ia;
+//    ia.s_addr = htonl(chain_current(&addr_container));
+//    printf("first %s\n", inet_ntoa(ia));
+//    chain_next(&addr_container);
+//  }
+
+  void *args[2] = { &local, &addr_container };
+
+  if(pthread_create( &receiver, NULL, &receive_arp, args)) {
     fprintf(stderr,"Error - pthread_create()\n");
     exit(EXIT_FAILURE);
   }
@@ -114,32 +116,33 @@ int main (int argc, char *argv[]) {
   }
   
   // send
-  i = 0;
-  while(i++ < 10*254 && !_trans_exit) {
-    //printf("ip %d\n", chain_get()->ip);
-    ether_frame[41] = chain_get()->ip;
-    if ((bytes = sendto (sd, ether_frame, ETH_FRAME_ARP, 0,
+  while(addr_container.cycle < 1 &&
+        !_trans_exit) {
+    *((unsigned int*)alloc_arphdr(ether_frame)->target_ip) =
+        htonl(chain_current(&addr_container));
+    if (sendto(sd, ether_frame, ETH_FRAME_ARP, 0,
                          local.ifa_dstaddr,
-                         sizeof (struct sockaddr_ll))) <= 0) {
-      perror ("sendto() failed");
-      exit (EXIT_FAILURE);
+                         sizeof (struct sockaddr_ll)) <= 0) {
+      perror("sendto() failed");
+      exit(EXIT_FAILURE);
     }
-    usleep(rand()%50000);
-    chain_next();
+    usleep(10000+rand()%50000);
+    chain_next(&addr_container);
   }
   
-  usleep(1000000);
-  
-  chain_t *find = get_find_chain();
+  chain_t *find = addr_container.deleted;
   find->back->next = NULL;
   
+  struct in_addr fa;
   while ( find->next != NULL ) {
-    printf("find %d\n", find->ip);
+    fa.s_addr = htonl(find->addr);
+    printf("find %s\n", inet_ntoa(fa) );
     find = find->next;
   }
-  printf("find %d\n", find->ip);
+  fa.s_addr = htonl(find->addr);
+  printf("find %s\n", inet_ntoa(fa));
   
-  chain_free();
+  chain_free(&addr_container);
   free_local(&local);
   free_target(&sender);
   exit_receiver();

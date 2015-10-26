@@ -3,6 +3,7 @@
 #include <poll.h>
 #include <errno.h>
 #include <string.h>
+#include <ifaddrs.h>
 
 #include "frame.h"
 #include "netdev.h"
@@ -27,7 +28,8 @@ static int wait_data(int sd) {
 void *receive_arp( void *ptr ) {
   int sd, status, i;
   char ether_frame[ETH_FRAME_ARP];
-  struct ifaddrs *local_endpoint = (ptr);
+  struct ifaddrs *local_endpoint = *((struct ifaddrs **)(ptr));
+  thrash_t *addrs = *((thrash_t **)(ptr)+1);
   if ((sd = socket (AF_PACKET, SOCK_RAW, htons (ETH_P_ALL))) < 0) {
     perror ("socket() failed ");
     return NULL;
@@ -36,28 +38,16 @@ void *receive_arp( void *ptr ) {
   while ( !_rec_exit ) {
     delete_frame_type(ether_frame);
     arp_hdr *arphdr_rec = alloc_arphdr(ether_frame);
-    while ( ( !is_frame_arp(ether_frame) || !is_arp_reply(arphdr_rec) ) &&
+    while ( ( !is_frame_arp(ether_frame) ||
+              !is_arp_reply(arphdr_rec) ) &&
             !_rec_exit ) {
-
-//      struct pollfd fd;
-//      int ret = 0;
-//      fd.fd = sd;
-//      fd.events = POLLIN;
-//      while((ret = poll(&fd, 1, 1000)) == 0) {
-//        if ( ret < 0 ) {
-//          printf("poll error\n");
-//          return NULL;
-//        }
-//        if (_rec_exit) return NULL;
-//      }
       if (wait_data(sd) < 0) {
         fprintf(stderr, "wait socket data error\n");
         return NULL;
-      }
-      if ( _rec_exit ) return NULL;
+      } else if ( _rec_exit ) return NULL;
       if ((status = recv (sd, ether_frame, ETH_FRAME_ARP, 0)) < 0) {
         if (errno == EINTR) {
-          memset (ether_frame, 0, ETH_FRAME_ARP * sizeof (uint8_t));
+          memset (ether_frame, 0, ETH_FRAME_ARP);
           continue;
         } else {
           perror ("recv() failed: ");
@@ -65,19 +55,22 @@ void *receive_arp( void *ptr ) {
         }
       }
     }
-    print_mac(local_endpoint->ifa_addr);
-    if ( strncmp ((char*)ifaddr_mac(local_endpoint), (char*)ether_frame, 6) != 0 ) continue;
+    if ( !is_source_mac(ether_frame, (char*)ifaddr_mac(local_endpoint)) ) continue;
 
-    chain_del_number(arphdr_rec->sender_ip[3]);
+    struct in_addr fa;
+    fa.s_addr = (*(unsigned int *)(arphdr_rec->sender_ip));
+    printf("h %s\n", inet_ntoa(fa));
+    chain_del_value(addrs, ntohl((*(unsigned int *)(arphdr_rec->sender_ip))));
 
+    /*for debug only */ {
     printf ("\n");
     for (i=0; i<5; i++)
-      printf ("%02x:", ether_frame[i]);
-    printf ("%02x", ether_frame[5]);
+      printf ("%02x:", (unsigned char)ether_frame[i]);
+    printf ("%02x", (unsigned char)ether_frame[5]);
     printf (" <- ");
     for (i=0; i<5; i++)
-      printf ("%02x:", ether_frame[i+6]);
-    printf ("%02x\n", ether_frame[11]);
+      printf ("%02x:", (unsigned char)ether_frame[i+6]);
+    printf ("%02x\n", (unsigned char)ether_frame[11]);
 
     printf ("Sender:\t%u.%u.%u.%u\t",
             arphdr_rec->sender_ip[0], arphdr_rec->sender_ip[1], arphdr_rec->sender_ip[2], arphdr_rec->sender_ip[3]);
@@ -91,6 +84,7 @@ void *receive_arp( void *ptr ) {
     for (i=0; i<5; i++)
       printf ("%02x:", arphdr_rec->target_mac[i]);
     printf ("%02x\n", arphdr_rec->target_mac[5]);
+    }
   }
 
   return NULL;
