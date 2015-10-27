@@ -22,12 +22,8 @@
 #include <linux/if_packet.h>
 #include <net/ethernet.h> /* the L2 protocols */
 
-void print_ip(struct sockaddr *addr)
-{
-  struct sockaddr_in *h = ((struct sockaddr_in*)addr);
-  struct in_addr ad = h->sin_addr;
-
-  printf("\t\taddress: %d -  <%s>\n", (int)(ad.s_addr),
+void print_ip(struct sockaddr *addr) {
+  printf("\t<%s>\n",
          inet_ntoa(((struct sockaddr_in*)addr)->sin_addr));
 }
 
@@ -35,7 +31,7 @@ void print_mac(struct sockaddr *addr)
 {
   int i=0;
   struct sockaddr_ll *h = ((struct sockaddr_ll*)addr);
-  printf("\t\tmac ");
+  printf("\t");
   for (;i<6;i++) {
     printf("%02x", h->sll_addr[i]);
     if ( i!=5 ) printf(":");
@@ -95,42 +91,52 @@ static struct ifaddrs *find_mac_addr(struct ifaddrs *ifaddr, struct ifaddrs *pat
   return NULL;
 }
 
-void init_local(char *ifname, struct ifaddrs *ifs, struct ifaddrs *local) {
-  if ( !ifname ) {
-    struct ifaddrs *ifaddr, *ifa;
+static int init_ifaddr(struct ifaddrs *ifaddr,
+                       struct ifaddrs *local,
+                       struct ifaddrs *ifa) {
+  memcpy(local, ifa, sizeof(struct ifaddrs));
+  local->ifa_addr = malloc(sizeof(struct sockaddr_ll));
+  memcpy(local->ifa_addr, ifa->ifa_addr, sizeof(struct sockaddr));
+  int ifa_name_len = strlen(ifa->ifa_name)+1;
+  local->ifa_name = malloc(ifa_name_len);
+  memcpy(local->ifa_name, ifa->ifa_name, ifa_name_len);
+  local->ifa_dstaddr = malloc(sizeof(struct sockaddr_ll));
+  memcpy(local->ifa_dstaddr, local->ifa_addr, sizeof(struct sockaddr));
+  struct ifaddrs *mac_ifaddr = find_mac_addr(ifaddr, ifa);
+  if ( mac_ifaddr )
+    memcpy(ifaddr_mac(local), ifaddr_mac(mac_ifaddr), 6);
+  ((struct sockaddr_ll*)local->ifa_dstaddr)->sll_ifindex = if_nametoindex(local->ifa_name);
+  ((struct sockaddr_ll*)local->ifa_dstaddr)->sll_family = AF_PACKET;
+  ((struct sockaddr_ll*)local->ifa_dstaddr)->sll_protocol = htons(ETH_P_ARP);
+  return 1;
+}
 
-    if (getifaddrs(&ifaddr) == -1) {
-      perror("getifaddrs");
-      exit(EXIT_FAILURE);
-    }
-    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
-      if ( ifa->ifa_addr == NULL ) continue;
-      if ( ifa->ifa_addr->sa_family == AF_INET ) {
+int init_local(char *ifname, struct ifaddrs *ifs, struct ifaddrs *local) {
+  int ret = -1;
+  struct ifaddrs *ifaddr, *ifa;
+  if (getifaddrs(&ifaddr) == -1) {
+    perror("getifaddrs");
+    return -1;
+  }
+  for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+    if ( ifa->ifa_addr == NULL ||
+         ifname &&
+         strcmp(ifa->ifa_name, ifname) ) continue;
+    if ( ifa->ifa_addr->sa_family == AF_INET ) {
+      if (verbose) {
         printf("check subnet %d ",
                in_subnet(sockaddr_ip_addr(ifa->ifa_addr), ifs));
-        printf("%s - ", ifa->ifa_name);
+        printf("%s", ifa->ifa_name);
         print_ip(ifa->ifa_addr);
-        if ( in_subnet(sockaddr_ip_addr(ifa->ifa_addr), ifs) ) {
-          memcpy(local, ifa, sizeof(struct ifaddr));
-          local->ifa_addr = malloc(sizeof(struct sockaddr_ll));
-          memcpy(local->ifa_addr, ifa->ifa_addr, sizeof(struct sockaddr));
-          int ifa_name_len = strlen(ifa->ifa_name)+1;
-          local->ifa_name = malloc(ifa_name_len);
-          memcpy(local->ifa_name, ifa->ifa_name, ifa_name_len);
-          local->ifa_dstaddr = malloc(sizeof(struct sockaddr_ll));
-          memcpy(local->ifa_dstaddr, local->ifa_addr, sizeof(struct sockaddr));
-          struct ifaddrs *mac_ifaddr = find_mac_addr(ifaddr, ifa);
-          if ( mac_ifaddr )
-            memcpy(ifaddr_mac(local), ifaddr_mac(mac_ifaddr), 6);
-          ((struct sockaddr_ll*)local->ifa_dstaddr)->sll_ifindex = if_nametoindex(local->ifa_name);
-          ((struct sockaddr_ll*)local->ifa_dstaddr)->sll_family = AF_PACKET;
-          ((struct sockaddr_ll*)local->ifa_dstaddr)->sll_protocol = htons(ETH_P_ARP);
-          break;
-        }
+      }
+      if ( in_subnet(sockaddr_ip_addr(ifa->ifa_addr), ifs) ) {
+        ret = init_ifaddr(ifaddr, local, ifa);
+        break;
       }
     }
-    freeifaddrs(ifaddr);
   }
+  freeifaddrs(ifaddr);
+  return ret;
 }
 
 void free_local(struct ifaddrs* ifa) {

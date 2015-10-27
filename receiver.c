@@ -59,18 +59,19 @@ void *receive_arp( void *ptr ) {
 
     struct in_addr fa;
     fa.s_addr = (*(unsigned int *)(arphdr_rec->sender_ip));
-    printf("h %s\n", inet_ntoa(fa));
+    printf("\t%s\n", inet_ntoa(fa));
     chain_del_value(addrs, ntohl((*(unsigned int *)(arphdr_rec->sender_ip))));
 
     /*for debug only */ {
     printf ("\n");
-    for (i=0; i<5; i++)
-      printf ("%02x:", (unsigned char)ether_frame[i]);
-    printf ("%02x", (unsigned char)ether_frame[5]);
-    printf (" <- ");
-    for (i=0; i<5; i++)
-      printf ("%02x:", (unsigned char)ether_frame[i+6]);
-    printf ("%02x\n", (unsigned char)ether_frame[11]);
+    // eth level
+//    for (i=0; i<5; i++)
+//      printf ("%02x:", (unsigned char)ether_frame[i]);
+//    printf ("%02x", (unsigned char)ether_frame[5]);
+//    printf (" <- ");
+//    for (i=0; i<5; i++)
+//      printf ("%02x:", (unsigned char)ether_frame[i+6]);
+//    printf ("%02x\n", (unsigned char)ether_frame[11]);
 
     printf ("Sender:\t%u.%u.%u.%u\t",
             arphdr_rec->sender_ip[0], arphdr_rec->sender_ip[1], arphdr_rec->sender_ip[2], arphdr_rec->sender_ip[3]);

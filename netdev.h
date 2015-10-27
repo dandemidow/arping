@@ -16,13 +16,15 @@
 #define ifaddr_ip_addr(ifa) sockaddr_ip_addr((ifa)->ifa_addr)
 #define ifaddr_netmask(ifa) sockaddr_ip_addr((ifa)->ifa_netmask)
 
+extern int verbose;
+
 void print_ip(struct sockaddr *);
 void print_mac(struct sockaddr *);
 
 void init_target(struct ifaddrs *if_sender, char *target);
 void free_target(struct ifaddrs *if_sender);
 
-void init_local(char *ifname, struct ifaddrs *ifs, struct ifaddrs *local);
+int init_local(char *ifname, struct ifaddrs *ifs, struct ifaddrs *local);
 void free_local(struct ifaddrs*);
 
 #endif // NETDEV_H

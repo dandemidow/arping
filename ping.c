@@ -35,6 +35,8 @@ static void sighandler(int signum) {
   _trans_exit = 1;
   exit_receiver();
 }
+
+int verbose = 0;
  
 int main (int argc, char *argv[]) {
   struct sigaction sigact;
@@ -42,6 +44,7 @@ int main (int argc, char *argv[]) {
   char ether_frame[ETH_FRAME_ARP];
   int c;
   size_t cycles = 1;
+  int time_delay = 100; //millisec
   char *ifacename = NULL;
   char *target;
   struct ifaddrs sender, local;
@@ -49,23 +52,24 @@ int main (int argc, char *argv[]) {
 
   if (argc < 2) {
     printf("too few arguments %d\n", argc);
-    // usage();
+    usage();
     exit(EXIT_FAILURE);
   }
 
   target = argv[1];
   init_target(&sender, target);
 
-  printf("target: %s\n", target);
-  print_ip(sender.ifa_netmask);
-
   while ((c = getopt(argc, argv, "vr:i:")) != EOF) {
     switch (c) {
     case 'v':
+        verbose = 1;
       break;
     case 'r':
-      cycles = atoi(optarg);
+        cycles = atoi(optarg);
       break;
+      case 't':
+          time_delay = atoi(optarg);
+        break;
     case 'i':
         ifacename = optarg;
         break;
@@ -75,13 +79,20 @@ int main (int argc, char *argv[]) {
     }
   }
 
-  printf("iface name %s\n", ifacename);
+  if (init_local(ifacename, &sender, &local) <0 ) {
+    fprintf(stderr, "Init the local interface %s failed\n", ifacename);
+    exit(EXIT_FAILURE);
+  }
 
-  init_local(ifacename, &sender, &local);
+  if (verbose) {
+    printf("iface name %s\n", ifacename);
+    printf("target:\t%s\nnetmak", target);
+    print_ip(sender.ifa_netmask);
 
-  printf("%s ", local.ifa_name);
-  print_ip(local.ifa_addr);
-  print_mac(local.ifa_addr);
+    printf("%s ", local.ifa_name);
+    print_ip(local.ifa_addr);
+    print_mac(local.ifa_addr);
+  }
 
   sigact.sa_handler = sighandler;
   sigemptyset(&sigact.sa_mask);
@@ -95,8 +106,6 @@ int main (int argc, char *argv[]) {
   struct in_addr ia_last;
   ia_last.s_addr = htonl((ntohl(ifaddr_ip_addr(&sender).s_addr) |
                     (~ntohl(ifaddr_netmask(&sender).s_addr)))-1);
-
-//  printf("first %s\n", inet_ntoa(ia_last));
   thrash_t addr_container;
   
   chain_init(&addr_container, ntohl(ifaddr_ip_addr(&sender).s_addr), ntohl(ia_last.s_addr));
@@ -130,7 +139,7 @@ int main (int argc, char *argv[]) {
       perror("sendto() failed");
       exit(EXIT_FAILURE);
     }
-    usleep(10000+rand()%50000);
+    usleep(time_delay*1000+rand()%50000);
     chain_next(&addr_container);
   }
   
@@ -150,9 +159,7 @@ int main (int argc, char *argv[]) {
   free_local(&local);
   free_target(&sender);
   exit_receiver();
-  printf("wait receiver\n");
   pthread_join(receiver, NULL);
-  printf("wait receiver done\n");
   close (sd);
   return (EXIT_SUCCESS);     
 }
