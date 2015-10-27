@@ -18,4 +18,6 @@ int is_frame_arp(char *frame);
 
 int is_source_mac(char *frame, char *mac);
 
+struct in_addr int_in_addr(unsigned int num);
+
 #endif  // _FARAME_H_

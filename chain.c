@@ -53,19 +53,24 @@ static chain_t *exclude_from_main(thrash_t *tr, chain_t *ch) {
 }
 
 static chain_t *find_value(thrash_t *tr, unsigned int value) {
-  chain_t *s_first;
+  chain_t *s_first = tr->main;
   chain_t *s_last = tr->main->back;
-  for(s_first=tr->main; s_first <= s_last; s_first=s_first->next) {
+  do {
     if ( s_first->addr == value ) return s_first;
-  }
+    s_first = s_first->next;
+  } while(s_first!=s_last);
   return NULL;
 }
 
 chain_t *chain_del_value(thrash_t *tr, unsigned int value) {
   pthread_mutex_lock(&tr->lock);
   chain_t *p = find_value(tr, value);
+  if ( p ) {
   exclude_from_main(tr, p);
   chain_add_to_thrash(tr, p);
+  } else {
+    fprintf(stderr, "chain del failed\n");
+  }
   pthread_mutex_unlock(&tr->lock);
   return p;
 }

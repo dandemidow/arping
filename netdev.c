@@ -120,8 +120,8 @@ int init_local(char *ifname, struct ifaddrs *ifs, struct ifaddrs *local) {
   }
   for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
     if ( ifa->ifa_addr == NULL ||
-         ifname &&
-         strcmp(ifa->ifa_name, ifname) ) continue;
+         ( ifname &&
+         strcmp(ifa->ifa_name, ifname) ) ) continue;
     if ( ifa->ifa_addr->sa_family == AF_INET ) {
       if (verbose) {
         printf("check subnet %d ",
@@ -141,5 +141,6 @@ int init_local(char *ifname, struct ifaddrs *ifs, struct ifaddrs *local) {
 
 void free_local(struct ifaddrs* ifa) {
   free(ifa->ifa_addr);
+  free(ifa->ifa_name);
   free(ifa->ifa_dstaddr);
 }

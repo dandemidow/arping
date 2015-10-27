@@ -131,8 +131,12 @@ int main (int argc, char *argv[]) {
   
   while(addr_container.cycle < cycles &&
         !_trans_exit) {
-    *((unsigned int*)alloc_arphdr(ether_frame)->target_ip) =
+    alloc_arphdr(ether_frame)->target_ip =
         htonl(chain_current(&addr_container));
+
+//    printf("ifaddr \t%s\n", inet_ntoa(int_in_addr(alloc_arphdr(ether_frame)->target_ip)));
+//    printf("ifcoof \t%s\n", inet_ntoa(int_in_addr(alloc_arphdr(ether_frame)->sender_ip)));
+
     if (sendto(sd, ether_frame, ETH_FRAME_ARP, 0,
                          local.ifa_dstaddr,
                          sizeof (struct sockaddr_ll)) <= 0) {

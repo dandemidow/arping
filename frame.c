@@ -21,10 +21,10 @@ void init_frame(char *frame,
   arphdr->plen = 4;
   arphdr->opcode = htons (ARPOP_REQUEST);
 
-  memcpy(arphdr->sender_ip, &ifaddr_ip_addr(local), 4);
   memcpy(arphdr->sender_mac, ifaddr_mac(local), ETHER_ADDR_LEN);
+  arphdr->sender_ip = ifaddr_ip_addr(local).s_addr;
   bzero (arphdr->target_mac, ETHER_ADDR_LEN);
-  memcpy(arphdr->target_ip, &ifaddr_ip_addr(remote), 4);
+  arphdr->target_ip = ifaddr_ip_addr(remote).s_addr;
 }
 
 
@@ -43,4 +43,11 @@ int is_frame_arp(char *frame) {
 
 int is_source_mac(char *frame, char *mac) {
   return (strncmp(mac, frame, ETHER_ADDR_LEN) == 0);
+}
+
+
+struct in_addr int_in_addr(unsigned int num) {
+  struct in_addr fa;
+  fa.s_addr = num;
+  return fa;
 }

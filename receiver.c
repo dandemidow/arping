@@ -57,10 +57,10 @@ void *receive_arp( void *ptr ) {
     }
     if ( !is_source_mac(ether_frame, (char*)ifaddr_mac(local_endpoint)) ) continue;
 
-    struct in_addr fa;
-    fa.s_addr = (*(unsigned int *)(arphdr_rec->sender_ip));
-    printf("\t%s\n", inet_ntoa(fa));
-    chain_del_value(addrs, ntohl((*(unsigned int *)(arphdr_rec->sender_ip))));
+//    struct in_addr fa;
+//    fa.s_addr = (arphdr_rec->sender_ip);
+//    printf("\t%s\n", inet_ntoa(fa));
+    chain_del_value(addrs, ntohl(arphdr_rec->sender_ip));
 
     /*for debug only */ {
     printf ("\n");
@@ -72,19 +72,19 @@ void *receive_arp( void *ptr ) {
 //    for (i=0; i<5; i++)
 //      printf ("%02x:", (unsigned char)ether_frame[i+6]);
 //    printf ("%02x\n", (unsigned char)ether_frame[11]);
-
-    printf ("Sender:\t%u.%u.%u.%u\t",
-            arphdr_rec->sender_ip[0], arphdr_rec->sender_ip[1], arphdr_rec->sender_ip[2], arphdr_rec->sender_ip[3]);
+    if ( verbose ) {
+    printf ("Sender:\t%s\t", inet_ntoa(int_in_addr(arphdr_rec->sender_ip)));
     for (i=0; i<5; i++)
       printf ("%02x:", arphdr_rec->sender_mac[i]);
     printf ("%02x\n", arphdr_rec->sender_mac[5]);
 
-    printf ("Target:\t");
-    printf ("%u.%u.%u.%u\t",
-            arphdr_rec->target_ip[0], arphdr_rec->target_ip[1], arphdr_rec->target_ip[2], arphdr_rec->target_ip[3]);
+    printf ("Target:\t%s\t", inet_ntoa(int_in_addr(arphdr_rec->target_ip)));
+//    printf ("%u.%u.%u.%u\t",
+//            arphdr_rec->target_ip[0], arphdr_rec->target_ip[1], arphdr_rec->target_ip[2], arphdr_rec->target_ip[3]);
     for (i=0; i<5; i++)
       printf ("%02x:", arphdr_rec->target_mac[i]);
     printf ("%02x\n", arphdr_rec->target_mac[5]);
+    }
     }
   }
 
