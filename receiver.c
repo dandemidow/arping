@@ -59,16 +59,12 @@ void *receive_arp( void *ptr ) {
     }
     if ( !is_source_mac(ether_frame, (char*)ifaddr_mac(local_endpoint)) ) continue;
 
-    chain_del_value(addrs, ntohl(arphdr_rec->sender_ip));
-
-    if ( !quiet ) {
-      printf ("%s\t[", inet_ntoa(int_in_addr(arphdr_rec->sender_ip)));
-      print_macstr(arphdr_rec->sender_mac);
-      printf("]\n");
-
-//      printf ("Target:\t%s\t", inet_ntoa(int_in_addr(arphdr_rec->target_ip)));
-//      print_macstr(arphdr_rec->target_mac);
-//      printf("\n");
+    if ( chain_del_value(addrs, ntohl(arphdr_rec->sender_ip)) ) {
+      if ( !quiet ) {
+        printf ("%s\t[", inet_ntoa(int_in_addr(arphdr_rec->sender_ip)));
+        print_macstr(arphdr_rec->sender_mac);
+        printf("]\n");
+      }
     }
   }
 

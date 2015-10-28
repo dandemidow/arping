@@ -27,7 +27,18 @@ static int _trans_exit = 0;
 extern void *receive_arp(void*);
 
 static void usage() {
-  printf("arping start_ip/netmast [-r cycles]\n");
+  printf("Usage:\n");
+  printf("\tarping    <address>/<prefixlen>  ");
+  printf(" [ -vqr ]  [-c cycles]  ");
+  printf(" [-t interval]  [-i interface]\n");
+  printf("\t\t -v\tverbose mode\n");
+  printf("\t\t -q quiet mode, all discovered devices will be output at the end of process\n");
+  printf("\t\t -r ramdom delay, add to delay interval the random component [ delay = interval + rand mod interval ]\n");
+  printf("\t\t -t interval, change delay interval during arp requests\n");
+  printf("\t\t -c cycles, quantity of cycles by ip adresses on netmask\n");
+  printf("\t\t -i interface, network interface");
+  printf("\n");
+  exit(EXIT_FAILURE);
 }
 
 static void sighandler(int signum) {
@@ -58,9 +69,6 @@ int main (int argc, char *argv[]) {
     exit(EXIT_FAILURE);
   }
 
-  target = argv[1];
-  init_target(&sender, target);
-
   while ((c = getopt(argc, argv, "vqrc:t:i:")) != EOF) {
     switch (c) {
     case 'v':
@@ -82,10 +90,17 @@ int main (int argc, char *argv[]) {
         ifacename = optarg;
         break;
 
-    default: break;
+    default: //break;
       usage();
     }
   }
+
+  argc -= optind;
+  argv += optind;
+  if (argc != 1)
+    usage();
+  target = *argv;
+  init_target(&sender, target);
 
   if (init_local(ifacename, &sender, &local) <0 ) {
     fprintf(stderr, "Init the local interface %s failed\n", ifacename);
