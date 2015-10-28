@@ -26,7 +26,7 @@ static int wait_data(int sd) {
 }
 
 void *receive_arp( void *ptr ) {
-  int sd, status, i;
+  int sd, status;
   char ether_frame[ETH_FRAME_ARP];
   struct ifaddrs *local_endpoint = *((struct ifaddrs **)(ptr));
   thrash_t *addrs = *((thrash_t **)(ptr)+1);
@@ -34,6 +34,8 @@ void *receive_arp( void *ptr ) {
     perror ("socket() failed ");
     return NULL;
   }
+
+  if ( !quiet ) printf("IP-address\tMAC-address\n");
 
   while ( !_rec_exit ) {
     delete_frame_type(ether_frame);
@@ -57,34 +59,16 @@ void *receive_arp( void *ptr ) {
     }
     if ( !is_source_mac(ether_frame, (char*)ifaddr_mac(local_endpoint)) ) continue;
 
-//    struct in_addr fa;
-//    fa.s_addr = (arphdr_rec->sender_ip);
-//    printf("\t%s\n", inet_ntoa(fa));
     chain_del_value(addrs, ntohl(arphdr_rec->sender_ip));
 
-    /*for debug only */ {
-    printf ("\n");
-    // eth level
-//    for (i=0; i<5; i++)
-//      printf ("%02x:", (unsigned char)ether_frame[i]);
-//    printf ("%02x", (unsigned char)ether_frame[5]);
-//    printf (" <- ");
-//    for (i=0; i<5; i++)
-//      printf ("%02x:", (unsigned char)ether_frame[i+6]);
-//    printf ("%02x\n", (unsigned char)ether_frame[11]);
-    if ( verbose ) {
-    printf ("Sender:\t%s\t", inet_ntoa(int_in_addr(arphdr_rec->sender_ip)));
-    for (i=0; i<5; i++)
-      printf ("%02x:", arphdr_rec->sender_mac[i]);
-    printf ("%02x\n", arphdr_rec->sender_mac[5]);
+    if ( !quiet ) {
+      printf ("%s\t[", inet_ntoa(int_in_addr(arphdr_rec->sender_ip)));
+      print_macstr(arphdr_rec->sender_mac);
+      printf("]\n");
 
-    printf ("Target:\t%s\t", inet_ntoa(int_in_addr(arphdr_rec->target_ip)));
-//    printf ("%u.%u.%u.%u\t",
-//            arphdr_rec->target_ip[0], arphdr_rec->target_ip[1], arphdr_rec->target_ip[2], arphdr_rec->target_ip[3]);
-    for (i=0; i<5; i++)
-      printf ("%02x:", arphdr_rec->target_mac[i]);
-    printf ("%02x\n", arphdr_rec->target_mac[5]);
-    }
+//      printf ("Target:\t%s\t", inet_ntoa(int_in_addr(arphdr_rec->target_ip)));
+//      print_macstr(arphdr_rec->target_mac);
+//      printf("\n");
     }
   }
 

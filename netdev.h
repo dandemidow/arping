@@ -17,9 +17,11 @@
 #define ifaddr_netmask(ifa) sockaddr_ip_addr((ifa)->ifa_netmask)
 
 extern int verbose;
+extern int quiet;
 
 void print_ip(struct sockaddr *);
 void print_mac(struct sockaddr *);
+void print_macstr(unsigned char *);
 
 void init_target(struct ifaddrs *if_sender, char *target);
 void free_target(struct ifaddrs *if_sender);

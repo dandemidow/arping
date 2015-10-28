@@ -27,16 +27,19 @@ void print_ip(struct sockaddr *addr) {
          inet_ntoa(((struct sockaddr_in*)addr)->sin_addr));
 }
 
-void print_mac(struct sockaddr *addr)
-{
-  int i=0;
+void print_mac(struct sockaddr *addr) {
   struct sockaddr_ll *h = ((struct sockaddr_ll*)addr);
   printf("\t");
-  for (;i<6;i++) {
-    printf("%02x", h->sll_addr[i]);
-    if ( i!=5 ) printf(":");
-  }
+  print_macstr(h->sll_addr);
   printf("\n");
+}
+
+void print_macstr(unsigned char *mac) {
+  int i;
+  for (i=0; i<ETHER_ADDR_LEN; i++) {
+    printf ("%02x", mac[i]);
+    if ( i!=ETHER_ADDR_LEN-1 ) printf (":");
+  }
 }
 
 void init_target(struct ifaddrs *if_sender, char *target) {

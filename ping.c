@@ -37,6 +37,8 @@ static void sighandler(int signum) {
 }
 
 int verbose = 0;
+int quiet = 0;
+int random_delay = 0;
  
 int main (int argc, char *argv[]) {
   struct sigaction sigact;
@@ -59,12 +61,18 @@ int main (int argc, char *argv[]) {
   target = argv[1];
   init_target(&sender, target);
 
-  while ((c = getopt(argc, argv, "vr:i:")) != EOF) {
+  while ((c = getopt(argc, argv, "vqrc:t:i:")) != EOF) {
     switch (c) {
     case 'v':
         verbose = 1;
       break;
-    case 'r':
+      case 'q':
+          quiet = 1;
+        break;
+      case 'r':
+          random_delay = 1;
+        break;
+    case 'c':
         cycles = atoi(optarg);
       break;
       case 't':
@@ -110,13 +118,6 @@ int main (int argc, char *argv[]) {
   
   chain_init(&addr_container, ntohl(ifaddr_ip_addr(&sender).s_addr), ntohl(ia_last.s_addr));
 
-//  while(addr_container.cycle == 0) {
-//    struct in_addr ia;
-//    ia.s_addr = htonl(chain_current(&addr_container));
-//    printf("first %s\n", inet_ntoa(ia));
-//    chain_next(&addr_container);
-//  }
-
   void *args[2] = { &local, &addr_container };
 
   if(pthread_create( &receiver, NULL, &receive_arp, args)) {
@@ -134,31 +135,28 @@ int main (int argc, char *argv[]) {
     alloc_arphdr(ether_frame)->target_ip =
         htonl(chain_current(&addr_container));
 
-//    printf("ifaddr \t%s\n", inet_ntoa(int_in_addr(alloc_arphdr(ether_frame)->target_ip)));
-//    printf("ifcoof \t%s\n", inet_ntoa(int_in_addr(alloc_arphdr(ether_frame)->sender_ip)));
-
     if (sendto(sd, ether_frame, ETH_FRAME_ARP, 0,
                          local.ifa_dstaddr,
                          sizeof (struct sockaddr_ll)) <= 0) {
       perror("sendto() failed");
       exit(EXIT_FAILURE);
     }
-    usleep(time_delay*1000+rand()%50000);
+    usleep(time_delay*1000+(random_delay?rand()%time_delay:0));
     chain_next(&addr_container);
   }
   
-  chain_t *find = addr_container.deleted;
-  find->back->next = NULL;
-  
-  struct in_addr fa;
-  while ( find->next != NULL ) {
+  if (quiet) {
+    chain_t *find = addr_container.deleted;
+    find->back->next = NULL;
+    struct in_addr fa;
+    while ( find->next != NULL ) {
+      fa.s_addr = htonl(find->addr);
+      printf("%s\n", inet_ntoa(fa) );
+      find = find->next;
+    }
     fa.s_addr = htonl(find->addr);
-    printf("find %s\n", inet_ntoa(fa) );
-    find = find->next;
+    printf("%s\n", inet_ntoa(fa));
   }
-  fa.s_addr = htonl(find->addr);
-  printf("find %s\n", inet_ntoa(fa));
-  
   chain_free(&addr_container);
   free_local(&local);
   free_target(&sender);
