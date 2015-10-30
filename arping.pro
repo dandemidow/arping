@@ -7,12 +7,14 @@ TARGET = arping
 DEPENDPATH += .
 
 # Input
-HEADERS += arp.h \
-    chain.h \
-    netdev.h \
-    frame.h \
-    receiver.h
-SOURCES += src/arp.c \
+HEADERS += \
+    src/arp.h \
+    src/chain.h \
+    src/netdev.h \
+    src/frame.h \
+    src/receiver.h
+SOURCES += \
+    src/arp.c \
     src/ping.c \
     src/chain.c \
     src/netdev.c \
