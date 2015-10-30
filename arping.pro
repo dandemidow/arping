@@ -5,7 +5,6 @@
 TEMPLATE = app
 TARGET = arping 
 DEPENDPATH += .
-INCLUDEPATH += .
 
 # Input
 HEADERS += arp.h \
@@ -13,8 +12,9 @@ HEADERS += arp.h \
     netdev.h \
     frame.h \
     receiver.h
-SOURCES += arp.c ping.c \
-    chain.c \
-    netdev.c \
-    frame.c \
-    receiver.c
+SOURCES += src/arp.c \
+    src/ping.c \
+    src/chain.c \
+    src/netdev.c \
+    src/frame.c \
+    src/receiver.c
